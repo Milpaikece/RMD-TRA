@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RMD-TRA — Asisten Riset Transportasi</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+:root {
+  --navy:#0D1B2A; --navy-mid:#162436;
+  --teal:#1A7A6E; --teal-lt:#23A898; --teal-dim:#0F5248;
+  --cream:#F5F0E8; --paper:#FDFAF5; --sand:#E8E0D0; --gold:#C8972A;
+  --text:#1C1C1C; --muted:#6B6560; --border:#D8D0C4;
+  --danger:#C0392B; --success:#1A7A6E; --r:6px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);
+  min-height:100vh;display:grid;
+  grid-template-rows:auto 1fr auto;
+  grid-template-columns:280px 1fr;
+  grid-template-areas:"header header" "sidebar main" "footer footer"}
+/* HEADER */
+header{grid-area:header;background:var(--navy);color:#fff;padding:0 32px;
+  display:flex;align-items:center;justify-content:space-between;height:64px;
+  border-bottom:3px solid var(--teal)}
+.logo-group{display:flex;align-items:center;gap:14px}
+.logo-icon{width:38px;height:38px;background:var(--teal);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'DM Serif Display',serif;font-size:18px;color:#fff}
+.logo-text{line-height:1.2}
+.logo-name{font-family:'DM Serif Display',serif;font-size:18px;color:#fff;letter-spacing:.3px}
+.logo-sub{font-size:11px;color:#8BAFC8;font-weight:300;letter-spacing:.8px}
+.header-badge{background:rgba(26,122,110,.25);border:1px solid var(--teal);
+  color:var(--teal-lt);font-size:11px;font-weight:500;padding:3px 10px;
+  border-radius:20px;letter-spacing:.5px}
+/* SIDEBAR */
+aside{grid-area:sidebar;background:var(--navy-mid);color:#fff;padding:24px 20px;
+  display:flex;flex-direction:column;gap:20px;
+  border-right:1px solid rgba(255,255,255,.06);overflow-y:auto}
+.sec-title{font-size:10px;font-weight:500;letter-spacing:1.5px;
+  color:#8BAFC8;text-transform:uppercase;margin-bottom:8px}
+.tool-btn{width:100%;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);border-radius:var(--r);
+  color:#D8E8F0;font-family:'DM Sans',sans-serif;font-size:13px;
+  padding:10px 14px;text-align:left;cursor:pointer;
+  transition:background .15s,border-color .15s;
+  display:flex;align-items:center;gap:10px;line-height:1.4;margin-bottom:6px}
+.tool-btn:hover{background:rgba(26,122,110,.2);border-color:var(--teal)}
+.tool-btn.active{background:rgba(26,122,110,.3);border-color:var(--teal-lt);color:#fff}
+.tool-icon{font-size:16px;flex-shrink:0}
+.tool-name{font-weight:500;display:block}
+.tool-desc{font-size:11px;color:#8BAFC8;display:block;margin-top:1px}
+.filter-badge{display:inline-block;background:rgba(200,151,42,.2);
+  border:1px solid var(--gold);color:var(--gold);
+  font-size:10px;font-weight:500;padding:2px 8px;border-radius:12px;margin-top:6px}
+.coming-soon{font-size:11px;color:#5A7A8A;font-style:italic;
+  padding:6px 0;border-top:1px solid rgba(255,255,255,.06)}
+/* MAIN */
+main{grid-area:main;display:flex;flex-direction:column;background:var(--paper);
+  overflow:hidden;min-height:0;}
+.chat-messages{flex:1;overflow-y:auto;padding:28px 36px;
+  display:flex;flex-direction:column;gap:20px;scroll-behavior:smooth;min-height:0;}
+/* WELCOME */
+.welcome-card{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-mid) 100%);
+  border-radius:12px;padding:32px 36px;color:#fff;max-width:620px;
+  align-self:center;margin:auto 0;border:1px solid rgba(26,122,110,.4)}
+.welcome-card h2{font-family:'DM Serif Display',serif;font-size:26px;
+  font-weight:400;margin-bottom:8px}
+.welcome-card p{font-size:14px;color:#A8C4D4;line-height:1.7;margin-bottom:20px}
+.pillar-item{display:flex;align-items:center;gap:10px;font-size:12px;color:#8BAFC8;margin-bottom:6px}
+.pillar-active{color:var(--teal-lt)}
+.pillar-dot{width:8px;height:8px;border-radius:50%;background:var(--teal-lt);flex-shrink:0}
+.pillar-dot.dim{background:#3A5060}
+.quick-prompts{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.qp-btn{background:rgba(26,122,110,.1);border:1px solid rgba(26,122,110,.3);
+  color:var(--teal);font-size:12px;font-family:'DM Sans',sans-serif;
+  padding:5px 12px;border-radius:20px;cursor:pointer;transition:background .15s}
+.qp-btn:hover{background:rgba(26,122,110,.2)}
+/* MESSAGES */
+.msg{display:flex;gap:12px;max-width:820px}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg.agent{align-self:flex-start}
+.msg-avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:500}
+.msg.agent .msg-avatar{background:var(--teal);color:#fff;font-family:'DM Serif Display',serif}
+.msg.user .msg-avatar{background:var(--navy);color:#8BAFC8}
+.msg-bubble{border-radius:12px;padding:14px 18px;font-size:14px;
+  line-height:1.75;max-width:680px}
+.msg.agent .msg-bubble{background:#fff;border:1px solid var(--border);
+  color:var(--text);border-top-left-radius:4px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.msg.user .msg-bubble{background:var(--navy);color:#D8E8F4;border-top-right-radius:4px}
+.typing{display:flex;align-items:center;gap:5px;padding:14px 18px}
+.typing span{width:7px;height:7px;background:var(--teal);border-radius:50%;
+  animation:bounce 1.2s infinite}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0);opacity:.5}40%{transform:translateY(-6px);opacity:1}}
+/* INPUT */
+.input-area{padding:12px 36px 16px;border-top:1px solid var(--border);background:var(--paper)}
+.upload-bar{display:flex;align-items:center;gap:8px;padding:6px 0 4px;
+  border-bottom:1px solid var(--border);margin-bottom:8px;flex-wrap:wrap}
+#upload-btn{display:flex;align-items:center;gap:6px;background:transparent;
+  border:1.5px dashed var(--border);border-radius:var(--r);color:var(--muted);
+  font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 12px;
+  cursor:pointer;transition:border-color .15s,color .15s;white-space:nowrap}
+#upload-btn:hover{border-color:var(--teal);color:var(--teal)}
+#file-input{display:none}
+.file-chip{display:flex;align-items:center;gap:6px;
+  background:rgba(26,122,110,.1);border:1px solid rgba(26,122,110,.3);
+  border-radius:20px;padding:3px 10px 3px 8px;font-size:12px;color:var(--teal)}
+.file-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.file-chip-remove{cursor:pointer;font-size:14px;background:none;border:none;
+  color:var(--teal);padding:0;line-height:1}
+.file-chip-remove:hover{color:var(--danger)}
+.input-wrap{display:flex;gap:10px;align-items:flex-end;background:#fff;
+  border:1.5px solid var(--border);border-radius:10px;padding:10px 12px 10px 16px;
+  transition:border-color .15s}
+.input-wrap:focus-within{border-color:var(--teal)}
+#msg-input{flex:1;border:none;outline:none;font-family:'DM Sans',sans-serif;
+  font-size:14px;color:var(--text);background:transparent;resize:none;
+  max-height:140px;line-height:1.6}
+#msg-input::placeholder{color:#B0A898}
+#send-btn{background:var(--teal);color:#fff;border:none;border-radius:7px;
+  width:38px;height:38px;flex-shrink:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;transition:background .15s}
+#send-btn:hover{background:var(--teal-dim)}
+#send-btn:disabled{background:var(--sand);cursor:not-allowed}
+.input-hint{font-size:11px;color:var(--muted);margin-top:6px;text-align:center}
+/* HISTORY PANEL */
+.history-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);
+  display:flex;align-items:flex-start;justify-content:flex-end;
+  z-index:200;overflow:hidden}
+.history-drawer{background:var(--paper);width:420px;max-width:95vw;height:100%;
+  display:flex;flex-direction:column;
+  box-shadow:-4px 0 24px rgba(0,0,0,.2);animation:slideIn .22s ease}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.history-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+  background:var(--navy)}
+.history-header h3{font-family:'DM Serif Display',serif;font-size:17px;
+  font-weight:400;color:#fff;margin:0}
+.history-close{background:none;border:none;color:#8BAFC8;font-size:20px;
+  cursor:pointer;padding:0;line-height:1}
+.history-close:hover{color:#fff}
+.history-list{flex:1;overflow-y:auto;padding:16px}
+.history-empty{text-align:center;color:var(--muted);font-size:13px;
+  padding:40px 20px;line-height:1.8}
+.history-item{background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:14px 16px;margin-bottom:10px;cursor:pointer;
+  transition:border-color .15s,box-shadow .15s;position:relative}
+.history-item:hover{border-color:var(--teal);box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.history-item-title{font-size:13px;font-weight:500;color:var(--navy);
+  margin-bottom:4px;line-height:1.4;padding-right:28px}
+.history-item-meta{font-size:11px;color:var(--muted);display:flex;gap:10px}
+.history-item-badge{display:inline-block;background:rgba(26,122,110,.1);
+  border:1px solid rgba(26,122,110,.25);color:var(--teal);
+  font-size:10px;font-weight:500;padding:1px 7px;border-radius:10px;margin-top:5px}
+.history-del{position:absolute;top:10px;right:10px;background:none;border:none;
+  color:var(--border);font-size:16px;cursor:pointer;padding:2px;line-height:1;
+  border-radius:4px;transition:color .15s,background .15s}
+.history-del:hover{color:var(--danger);background:rgba(192,57,43,.08)}
+.history-footer{padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0}
+.history-clear-btn{width:100%;background:transparent;border:1px solid var(--border);
+  border-radius:var(--r);padding:8px;font-size:12px;color:var(--muted);
+  cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s,color .15s}
+.history-clear-btn:hover{border-color:var(--danger);color:var(--danger)}
+/* ANALYZE PANEL */
+.analyze-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:30px 20px;z-index:150;overflow-y:auto}
+.analyze-modal{background:var(--paper);border-radius:12px;
+  border:1px solid var(--border);width:100%;max-width:680px;
+  padding:24px 28px;display:flex;flex-direction:column;gap:14px}
+.analyze-modal h3{font-family:'DM Serif Display',serif;font-size:18px;
+  font-weight:400;color:var(--navy);margin:0}
+.aml{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px}
+.ami{width:100%;padding:8px 12px;border:1.5px solid var(--border);
+  border-radius:var(--r);font-family:'DM Sans',sans-serif;font-size:13px;
+  color:var(--text);background:#fff;box-sizing:border-box}
+.ami:focus{outline:none;border-color:var(--teal)}
+.drop-zone{border:2px dashed var(--border);border-radius:var(--r);
+  padding:16px;cursor:pointer;text-align:center;font-size:13px;
+  color:var(--muted);transition:border-color .15s,color .15s}
+.drop-zone:hover,.drop-zone.over{border-color:var(--teal);color:var(--teal)}
+.drop-zone.ready{border-color:var(--teal);background:rgba(26,122,110,.05)}
+.analyze-progress{font-size:12px;color:var(--teal);padding:8px 0;display:none}
+.analyze-result{background:#fff;border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 16px;font-size:13px;line-height:1.7;
+  max-height:280px;overflow-y:auto;display:none}
+.modal-btns{display:flex;gap:10px;flex-wrap:wrap}
+.dl-btn{display:inline-flex;align-items:center;gap:6px;
+  background:var(--teal);color:#fff;border:none;border-radius:var(--r);
+  padding:8px 16px;font-size:13px;cursor:pointer;
+  font-family:'DM Sans',sans-serif}
+.dl-btn:hover{background:var(--teal-dim)}
+.dl-btn:disabled{background:var(--sand);cursor:not-allowed}
+.cancel-btn{background:transparent;border:1px solid var(--border);
+  border-radius:var(--r);padding:8px 14px;font-size:13px;
+  cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif}
+/* FOOTER */
+footer{grid-area:footer;background:var(--navy);color:#5A7A8A;
+  font-size:11px;padding:0 32px;height:48px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-top:1px solid rgba(255,255,255,.06)}
+footer a{color:var(--teal-lt);text-decoration:none}
+@media(max-width:768px){
+  body{grid-template-columns:1fr;grid-template-areas:"header" "main" "footer"}
+  aside{display:none}
+  .chat-messages,.input-area{padding:16px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-group">
+    <div class="logo-icon">RT</div>
+    <div class="logo-text">
+      <div class="logo-name">RMD-TRA</div>
+      <div class="logo-sub">TRANSPORTATION RESEARCH ASSISTANT · PRODI TRANSPORTASI</div>
+    </div>
+  </div>
+  <div class="header-badge">v3.2 · Pilar 1–5 Active</div>
+</header>
+
+<aside>
+  <div>
+    <div class="sec-title">Fitur Aktif</div>
+    <button class="tool-btn active" onclick="setTpl('filter',this)">
+      <span class="tool-icon">🔍</span>
+      <span><span class="tool-name">Filter Referensi</span><span class="tool-desc">Chronological Filter 2021–2026</span></span>
+    </button>
+    <button class="tool-btn" onclick="setTpl('citation',this)">
+      <span class="tool-icon">📝</span>
+      <span><span class="tool-name">Koreksi Sitasi</span><span class="tool-desc">APA 7th / IEEE</span></span>
+    </button>
+    <button class="tool-btn" onclick="setTpl('roadmap',this)">
+      <span class="tool-icon">🗺️</span>
+      <span><span class="tool-name">Cek Roadmap Prodi</span><span class="tool-desc">Research Roadmap Alignment</span></span>
+    </button>
+    <button class="tool-btn" onclick="setTpl('stats',this)">
+      <span class="tool-icon">📊</span>
+      <span><span class="tool-name">Analisis Statistik</span><span class="tool-desc">SPSS / SmartPLS / ServQual</span></span>
+    </button>
+    <button class="tool-btn" onclick="openAnalyzePanel()" style="border-color:rgba(200,151,42,.4);margin-top:4px">
+      <span class="tool-icon">🔬</span>
+      <span><span class="tool-name" style="color:#C8972A">Analisis Skripsi Lengkap</span><span class="tool-desc">Pilar 5 — 8 Sub-Agen Paralel</span></span>
+    </button>
+    <div class="filter-badge">Chronological Filter: 2021–2026</div>
+  </div>
+  <div>
+    <div class="sec-title">Dalam Pengembangan</div>
+    <div class="coming-soon">⚙ Pilar 4: MCP Policy Server</div>
+  </div>
+  <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+    <button class="tool-btn" onclick="openHistoryPanel()" style="border-color:rgba(138,175,200,.25)">
+      <span class="tool-icon">🕓</span>
+      <span>
+        <span class="tool-name" style="color:#8BAFC8">Histori Analisis</span>
+        <span class="tool-desc" id="history-count-label">Tinjau hasil analisis sebelumnya</span>
+      </span>
+    </button>
+    <div style="font-size:11px;color:#5A7A8A;line-height:1.7;padding-top:4px">
+      Upload skripsi → analisis otomatis referensi, sitasi, dan roadmap prodi.
+    </div>
+  </div>
+</aside>
+
+<main>
+  <div class="chat-messages" id="chat-messages">
+    <div class="welcome-card" id="welcome-card">
+      <h2>Selamat datang di RMD-TRA</h2>
+      <p>Platform Akselerator Publikasi Ilmiah Prodi Transportasi.<br>
+      <em>Transportation Research Assistant — Prodi Transportasi.</em></p>
+      <div>
+        <div class="pillar-item pillar-active"><div class="pillar-dot"></div><span>Pilar 1–3: Filter · Sitasi · Statistik · Manuskrip (Aktif)</span></div>
+        <div class="pillar-item pillar-active"><div class="pillar-dot"></div><span>Pilar 5: Analisis Skripsi Lengkap — 8 Sub-Agen (Aktif)</span></div>
+        <div class="pillar-item"><div class="pillar-dot dim"></div><span>Pilar 4: MCP Policy Server (Segera)</span></div>
+      </div>
+      <div class="quick-prompts">
+        <button class="qp-btn" onclick="useQP('filter_sample')">Coba filter referensi</button>
+        <button class="qp-btn" onclick="useQP('citation_sample')">Coba koreksi sitasi APA</button>
+        <button class="qp-btn" onclick="useQP('roadmap_sample')">Cek topik penelitian</button>
+        <button class="qp-btn" onclick="openAnalyzePanel()">Analisis skripsi lengkap</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="upload-bar">
+      <button id="upload-btn" onclick="document.getElementById('file-input').click()">
+        📎 Upload Skripsi / Proposal
+      </button>
+      <input type="file" id="file-input" accept=".pdf,.doc,.docx" onchange="onFileSelect(this)">
+      <div id="file-chip-container"></div>
+    </div>
+    <div class="input-wrap">
+      <textarea id="msg-input" rows="1"
+        placeholder="Ketik pertanyaan, atau upload file di atas untuk analisis otomatis…"></textarea>
+      <button id="send-btn" onclick="sendMessage()" title="Kirim">➤</button>
+    </div>
+    <div class="input-hint">📎 Upload PDF/Word untuk analisis otomatis · Enter kirim · Shift+Enter baris baru</div>
+  </div>
+</main>
+
+<footer>
+  <span>RMD-TRA v3.2 · Google ADK 2.0 · Gemini 2.5 Flash · Cloud Run</span>
+  <span>Prodi Transportasi · <a href="/info">API Info</a></span>
+</footer>
+
+<!-- HISTORY DRAWER -->
+<div id="history-overlay" class="history-overlay" style="display:none" onclick="closeHistoryOnBg(event)">
+  <div class="history-drawer" onclick="event.stopPropagation()">
+    <div class="history-header">
+      <h3>🕓 Histori Analisis</h3>
+      <button class="history-close" onclick="closeHistoryPanel()" title="Tutup">✕</button>
+    </div>
+    <div class="history-list" id="history-list">
+      <div class="history-empty">Belum ada analisis tersimpan.<br>Jalankan "Analisis Skripsi Lengkap" untuk memulai.</div>
+    </div>
+    <div class="history-footer">
+      <button class="history-clear-btn" onclick="clearAllHistory()">Hapus semua histori</button>
+    </div>
+  </div>
+</div>
+
+<!-- ANALYZE PANEL -->
+<div id="analyze-overlay" class="analyze-overlay" style="display:none" onclick="closeOnBg(event)">
+  <div class="analyze-modal" onclick="event.stopPropagation()">
+    <h3>🔬 Analisis Skripsi Lengkap — Pilar 5</h3>
+    <div style="font-size:12px;color:var(--muted);margin-top:-8px">
+      8 sub-agen paralel · Audit Bab 1–5 · Solusi revisi siap tempel Word · Draf IMRAD Scopus Q1
+    </div>
+    <div>
+      <label class="aml">Judul Skripsi *</label>
+      <input class="ami" type="text" id="thesis-title" placeholder="Judul lengkap skripsi">
+    </div>
+    <div>
+      <label class="aml">Nama Mahasiswa</label>
+      <input class="ami" type="text" id="student-name" placeholder="Opsional">
+    </div>
+    <div>
+      <label class="aml">File Skripsi (PDF atau Word) *</label>
+      <div id="drop-zone" class="drop-zone"
+           onclick="document.getElementById('analyze-file-input').click()"
+           ondragover="event.preventDefault();this.classList.add('over')"
+           ondragleave="this.classList.remove('over')"
+           ondrop="onAnalyzeDrop(event)">
+        <span id="drop-label">📎 Klik di sini atau seret file skripsi (PDF/Word, maks 20 MB)</span>
+      </div>
+      <input type="file" id="analyze-file-input" accept=".pdf,.doc,.docx" style="display:none" onchange="onAnalyzeFileSelect(this)">
+    </div>
+    <div class="analyze-progress" id="analyze-progress">⏳ Menganalisis... proses ini memakan 4–10 menit.</div>
+    <div class="analyze-result" id="analyze-result"></div>
+    <div class="modal-btns">
+      <button class="dl-btn" id="run-btn" onclick="runAnalysis()">🔬 Mulai Analisis</button>
+      <a class="dl-btn" id="dl-btn" style="display:none" href="#" onclick="downloadWord(event)">📄 Unduh Laporan Word</a>
+      <button class="cancel-btn" onclick="closeAnalyzePanel()">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── PREVIEW BUILDER — 5 SIMPUL BENANG MERAH ───────────────────────────────
+const SIMPUL_DEFS = [
+  { n:1, transisi:'Bab 1 → Bab 2', diperiksa:'Rumusan Masalah → Tinjauan Literatur' },
+  { n:2, transisi:'Bab 2 → Bab 3', diperiksa:'Teori → Metode yang Tepat' },
+  { n:3, transisi:'Bab 3 → Bab 4', diperiksa:'Metode → Hasil & Pembahasan (merujuk Bab 2)' },
+  { n:4, transisi:'Bab 4 → Bab 5', diperiksa:'Hasil → Sintesis Kesimpulan' },
+  { n:5, transisi:'Bab 1 ↔ Bab 5', diperiksa:'Sirkularitas Rumusan Masalah ↔ Kesimpulan' },
+];
+const STATUS_STYLE = {
+  'TERHUBUNG': { color:'#0F6E56', bg:'#E8F5F2', label:'TERHUBUNG' },
+  'LEMAH':     { color:'#8A5A0A', bg:'#FEF3D7', label:'LEMAH' },
+  'TERPUTUS':  { color:'#C0392B', bg:'#FDECEA', label:'TERPUTUS' },
+  '—':         { color:'#888',    bg:'#F5F5F5', label:'—' },
+};
+
+function parseSimpulStatus(text) {
+  const map = {};
+  const re = /SIMPUL\s+(\d)\s*\|.*?\[STATUS:\s*(TERHUBUNG|LEMAH|TERPUTUS)\]/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) map[parseInt(m[1])] = m[2].toUpperCase();
+  return map;
+}
+
+function buildSimpulTable(auditText) {
+  const statusMap = parseSimpulStatus(auditText);
+  let html = `
+  <div style="margin-bottom:14px">
+    <div style="font-weight:600;font-size:12px;color:var(--navy);margin-bottom:8px;letter-spacing:.3px">
+      KERANGKA 5 SIMPUL BENANG MERAH — Alur Berpikir Ilmiah Skripsi
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="background:var(--navy);color:#fff">
+          <th style="padding:6px 8px;text-align:left;width:60px">Simpul</th>
+          <th style="padding:6px 8px;text-align:left;width:110px">Transisi</th>
+          <th style="padding:6px 8px;text-align:left">Yang Diperiksa</th>
+          <th style="padding:6px 8px;text-align:center;width:90px">Status</th>
+        </tr>
+      </thead>
+      <tbody>`;
+  SIMPUL_DEFS.forEach(s => {
+    const st = statusMap[s.n] || '—';
+    const style = STATUS_STYLE[st] || STATUS_STYLE['—'];
+    html += `
+        <tr style="border-bottom:1px solid #e8e0d0">
+          <td style="padding:6px 8px;font-weight:600;color:var(--navy)">Simpul ${s.n}</td>
+          <td style="padding:6px 8px;color:var(--teal)">${s.transisi}</td>
+          <td style="padding:6px 8px;color:var(--text)">${s.diperiksa}</td>
+          <td style="padding:6px 8px;text-align:center">
+            <span style="background:${style.bg};color:${style.color};font-weight:600;
+              font-size:10px;padding:2px 8px;border-radius:10px;white-space:nowrap">
+              ${style.label}
+            </span>
+          </td>
+        </tr>`;
+  });
+  html += `</tbody></table>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic">
+      Laporan lengkap dengan solusi revisi per simpul tersedia di file Word.
+    </div>
+  </div>`;
+  return html;
+}
+
+function buildPreview(auditText) {
+  const simpulTable = buildSimpulTable(auditText);
+  // Ambil narasi singkat (sebelum marker solusi revisi)
+  const splitAt = auditText.search(/\[SOLUSI REVISI/i);
+  const narasi = splitAt > 0 ? auditText.slice(0, splitAt).trim() : auditText;
+  const narasiPreview = narasi.length > 800
+    ? narasi.slice(0, 800) + '...'
+    : narasi;
+  return simpulTable +
+    `<div style="font-size:12px;color:var(--text);line-height:1.7;margin-top:4px">
+       <strong style="font-size:11px;color:var(--navy)">Ringkasan Narasi Audit:</strong><br>
+       ${narasiPreview.replace(/\n/g,'<br>')}
+       ${narasi.length > 800 ? '<br><em style="color:var(--muted)">[...laporan lengkap dengan semua revisi ada di file Word]</em>' : ''}
+     </div>`;
+}
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let sessionId = 'session-' + Math.random().toString(36).slice(2,10);
+let userId    = 'user-'    + Math.random().toString(36).slice(2,10);
+let isLoading = false;
+
+// State untuk chat upload
+let chatPendingFile = null;
+let chatUploadedText = '';
+
+// State untuk panel analisis
+let analyzeSelectedFile = null;
+let analyzeDocxB64 = null;
+let analyzeDocxFilename = 'Laporan_Audit_RMD-TRA.docx';
+
+// ── HISTORI ────────────────────────────────────────────────────────────────
+const HISTORY_KEY = 'rmd_tra_history';
+const HISTORY_MAX = 20;
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveHistory(list) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+
+function addToHistory(entry) {
+  const list = loadHistory();
+  // Simpan: id unik, timestamp, judul, nama, preview teks, docx base64, filename
+  list.unshift({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    timestamp: new Date().toISOString(),
+    thesis_title: entry.thesis_title,
+    student_name: entry.student_name,
+    audit_preview: entry.audit_text.slice(0, 400),
+    audit_text: entry.audit_text,
+    docx_base64: entry.docx_base64,
+    docx_filename: entry.docx_filename,
+  });
+  // Batasi maksimum 20 entri — buang yang paling lama
+  if (list.length > HISTORY_MAX) list.splice(HISTORY_MAX);
+  saveHistory(list);
+  updateHistoryCountLabel();
+}
+
+function deleteHistoryItem(id, event) {
+  event.stopPropagation();
+  if (!confirm('Hapus entri histori ini?')) return;
+  const list = loadHistory().filter(e => e.id !== id);
+  saveHistory(list);
+  renderHistoryList();
+  updateHistoryCountLabel();
+}
+
+function clearAllHistory() {
+  if (!confirm('Hapus semua histori analisis? Tindakan ini tidak dapat diurungkan.')) return;
+  saveHistory([]);
+  renderHistoryList();
+  updateHistoryCountLabel();
+}
+
+function updateHistoryCountLabel() {
+  const n = loadHistory().length;
+  const el = document.getElementById('history-count-label');
+  if (el) el.textContent = n > 0 ? `${n} hasil tersimpan` : 'Tinjau hasil analisis sebelumnya';
+}
+
+function formatHistoryDate(iso) {
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2,'0');
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderHistoryList() {
+  const list = loadHistory();
+  const container = document.getElementById('history-list');
+  if (!list.length) {
+    container.innerHTML = '<div class="history-empty">Belum ada analisis tersimpan.<br>Jalankan "Analisis Skripsi Lengkap" untuk memulai.</div>';
+    return;
+  }
+  container.innerHTML = list.map(e => `
+    <div class="history-item" onclick="openHistoryEntry('${e.id}')">
+      <button class="history-del" onclick="deleteHistoryItem('${e.id}', event)" title="Hapus entri ini">✕</button>
+      <div class="history-item-title">${escHtml(e.thesis_title)}</div>
+      <div class="history-item-meta">
+        <span>👤 ${escHtml(e.student_name || 'Mahasiswa')}</span>
+        <span>📅 ${formatHistoryDate(e.timestamp)}</span>
+      </div>
+      <span class="history-item-badge">Laporan tersedia</span>
+    </div>
+  `).join('');
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openHistoryEntry(id) {
+  const entry = loadHistory().find(e => e.id === id);
+  if (!entry) return;
+
+  // Tutup histori, buka panel analisis dengan data dari histori
+  closeHistoryPanel();
+
+  // Isi panel analisis dengan data histori
+  document.getElementById('thesis-title').value = entry.thesis_title;
+  document.getElementById('student-name').value = entry.student_name || '';
+
+  const rd = document.getElementById('analyze-result');
+  const preview = entry.audit_text.length > 2000
+    ? entry.audit_text.slice(0,2000).replace(/\n/g,'<br>') +
+      '<br><em style="color:var(--muted)">[...laporan lengkap ada di file Word]</em>'
+    : entry.audit_text.replace(/\n/g,'<br>');
+  rd.innerHTML =
+    `<div style="background:rgba(26,122,110,.08);border:1px solid rgba(26,122,110,.2);
+      border-radius:6px;padding:8px 12px;font-size:11px;color:var(--teal);margin-bottom:10px">
+      📅 Dianalisis pada ${formatHistoryDate(entry.timestamp)} — menampilkan hasil tersimpan
+    </div>` + preview;
+  rd.style.display = 'block';
+
+  // Aktifkan tombol unduh dengan data dari histori
+  analyzeDocxB64 = entry.docx_base64;
+  analyzeDocxFilename = entry.docx_filename;
+  document.getElementById('dl-btn').style.display = 'inline-flex';
+  document.getElementById('analyze-progress').style.display = 'none';
+  document.getElementById('run-btn').disabled = false;
+
+  // Set drop zone label
+  document.getElementById('drop-label').textContent =
+    '📎 Klik di sini atau seret file baru untuk analisis ulang';
+  document.getElementById('drop-zone').classList.remove('ready');
+
+  document.getElementById('analyze-overlay').style.display = 'flex';
+}
+
+function openHistoryPanel() {
+  renderHistoryList();
+  document.getElementById('history-overlay').style.display = 'flex';
+}
+
+function closeHistoryPanel() {
+  document.getElementById('history-overlay').style.display = 'none';
+}
+
+function closeHistoryOnBg(e) {
+  if (e.target.id === 'history-overlay') closeHistoryPanel();
+}
+
+// Inisialisasi label saat halaman dimuat
+window.addEventListener('DOMContentLoaded', updateHistoryCountLabel);
+
+// ── TEMPLATE PROMPT ────────────────────────────────────────────────────────
+const TEMPLATES = {
+  filter:  'Tolong periksa referensi berikut dan filter yang di luar 2021–2026:\n\n',
+  citation:'Tolong koreksi format sitasi APA 7th berikut:\n\n',
+  roadmap: 'Tolong cek apakah topik penelitian berikut selaras dengan Roadmap Prodi Transportasi:\n\n',
+  stats:   'Tolong baca output statistik berikut dan buatkan narasi pembahasan:\n\n',
+};
+const QP = {
+  filter_sample:  'Tolong periksa referensi berikut dan filter yang di luar 2021–2026:\n\nSantoso, B. (2019). Analisis kepuasan penumpang TransJakarta. Jurnal Transportasi, 5(2), 45–58.\nWijaya, T. (2023). Kualitas layanan BRT. Jurnal Teknik Transportasi, 12(1), 12–25.\nHartono, D. (2015). Perencanaan transportasi perkotaan. Jakarta: Gramedia.\nPrasetyo, A. et al. (2022). Keselamatan lalu lintas di persimpangan. Jurnal Keselamatan, 8(3), 33–47.',
+  citation_sample:'Tolong koreksi format APA 7th:\n\nBudi Santoso, 2023, Analisis Kualitas Layanan Bus Kota Bandung, Jurnal Transportasi Vol 10 No 2 hal 15-28',
+  roadmap_sample: 'Tolong cek apakah topik ini selaras dengan Roadmap Prodi Transportasi:\n\nAnalisis Kepuasan Penumpang terhadap Kualitas Layanan Kereta Commuter Line dengan Metode ServQual di Stasiun Bekasi',
+};
+
+// ── SIDEBAR TOOLS ──────────────────────────────────────────────────────────
+function setTpl(type, btn) {
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const ta = document.getElementById('msg-input');
+  ta.value = TEMPLATES[type] || '';
+  autoResize(ta);
+  ta.focus();
+}
+function useQP(key) {
+  hideWelcome();
+  const ta = document.getElementById('msg-input');
+  ta.value = QP[key] || '';
+  autoResize(ta);
+  ta.focus();
+}
+
+// ── TEXTAREA ───────────────────────────────────────────────────────────────
+const ta = document.getElementById('msg-input');
+ta.addEventListener('input', () => autoResize(ta));
+ta.addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} });
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+// ── CHAT FILE UPLOAD ───────────────────────────────────────────────────────
+function onFileSelect(input) {
+  const f = input.files[0];
+  if (f) setChatFile(f);
+}
+function setChatFile(file) {
+  chatPendingFile = file;
+  const kb = file.size > 1048576 ? (file.size/1048576).toFixed(1)+' MB' : Math.round(file.size/1024)+' KB';
+  document.getElementById('file-chip-container').innerHTML =
+    `<div class="file-chip">
+      <span>📄</span>
+      <span class="file-chip-name" title="${file.name}">${file.name}</span>
+      <span style="color:var(--muted);font-size:10px">${kb}</span>
+      <button class="file-chip-remove" onclick="clearChatFile()" title="Hapus">✕</button>
+    </div>`;
+  if (!ta.value.trim()) {
+    ta.value = 'Tolong analisis dokumen ini: filter referensi yang di luar 2021-2026, koreksi sitasi yang salah, dan cek kesesuaian topiknya dengan Roadmap Prodi Transportasi.';
+    autoResize(ta);
+  }
+  ta.focus();
+}
+function clearChatFile() {
+  chatPendingFile = null;
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-chip-container').innerHTML = '';
+}
+
+// Drag & drop pada input area
+const inputArea = document.querySelector('.input-area');
+inputArea.addEventListener('dragover', e => { e.preventDefault(); inputArea.style.background='rgba(26,122,110,.03)'; });
+inputArea.addEventListener('dragleave', () => { inputArea.style.background=''; });
+inputArea.addEventListener('drop', e => {
+  e.preventDefault(); inputArea.style.background='';
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.match(/\.(pdf|docx?)$/i)) setChatFile(f);
+  else if (f) alert('Format tidak didukung. Gunakan PDF, DOC, atau DOCX.');
+});
+
+// ── CHAT MESSAGES ──────────────────────────────────────────────────────────
+function hideWelcome() {
+  const wc = document.getElementById('welcome-card');
+  if (wc) wc.style.display = 'none';
+}
+function appendMsg(role, text) {
+  hideWelcome();
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = `msg ${role}`;
+  const av = document.createElement('div'); av.className = 'msg-avatar';
+  av.textContent = role==='agent' ? 'R' : '👤';
+  const bub = document.createElement('div'); bub.className = 'msg-bubble';
+  bub.innerHTML = text.replace(/\n/g,'<br>');
+  d.appendChild(av); d.appendChild(bub); c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+function showTyping() {
+  hideWelcome();
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className='msg agent'; d.id='typing';
+  const av = document.createElement('div'); av.className='msg-avatar'; av.textContent='R';
+  const bub = document.createElement('div'); bub.className='msg-bubble';
+  bub.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  d.appendChild(av); d.appendChild(bub); c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+function removeTyping() { const t=document.getElementById('typing'); if(t) t.remove(); }
+
+// ── SEND MESSAGE ───────────────────────────────────────────────────────────
+async function sendMessage() {
+  if (isLoading) return;
+  const instruction = ta.value.trim();
+  if (!instruction && !chatPendingFile) return;
+
+  isLoading = true;
+  ta.value = ''; autoResize(ta);
+  document.getElementById('send-btn').disabled = true;
+
+  const displayMsg = chatPendingFile
+    ? `📎 ${chatPendingFile.name}\n\n${instruction}`
+    : instruction;
+  appendMsg('user', displayMsg);
+  showTyping();
+
+  // Simpan referensi file sebelum clear
+  const fileForUpload = chatPendingFile;
+  clearChatFile();
+
+  try {
+    let messageToSend = instruction;
+
+    if (fileForUpload) {
+      // Upload file ke server dulu
+      const fd = new FormData();
+      fd.append('file', fileForUpload);
+      const upRes = await fetch('/upload', { method:'POST', body:fd });
+      if (!upRes.ok) {
+        const err = await upRes.json().catch(()=>({}));
+        throw new Error('Gagal ekstrak teks: ' + (err.detail || upRes.status));
+      }
+      const upData = await upRes.json();
+      // Simpan untuk panel analisis
+      if (upData.extracted_text) chatUploadedText = upData.extracted_text;
+
+      const chapInfo = upData.chapter_count > 0
+        ? ` · ${upData.chapter_count} bab terdeteksi (${(upData.chapters_detected||[]).join(', ')})`
+        : ' · struktur bab tidak terdeteksi otomatis';
+
+      messageToSend =
+        `${instruction || 'Analisis dokumen ini secara lengkap.'}\n\n` +
+        `--- DOKUMEN: ${upData.filename} (${upData.pages} hal, ${upData.word_count} kata${chapInfo}) ---\n\n` +
+        `JUDUL TERDETEKSI: ${upData.title}\n\n` +
+        `DAFTAR PUSTAKA (${upData.ref_count} referensi):\n` +
+        (upData.references || []).join('\n');
+    }
+
+    const res = await fetch('/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message:messageToSend, session_id:sessionId, user_id:userId })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    sessionId = data.session_id; userId = data.user_id;
+    removeTyping();
+    appendMsg('agent', data.response);
+  } catch(err) {
+    removeTyping();
+    appendMsg('agent', `⚠️ ${err.message}\n\nCek terminal PowerShell untuk log lengkap.`);
+  } finally {
+    isLoading = false;
+    document.getElementById('send-btn').disabled = false;
+    ta.focus();
+  }
+}
+
+// ── ANALYZE PANEL ──────────────────────────────────────────────────────────
+function openAnalyzePanel() {
+  analyzeSelectedFile = null;
+  analyzeDocxB64 = null;
+  document.getElementById('analyze-overlay').style.display = 'flex';
+  document.getElementById('analyze-result').style.display = 'none';
+  document.getElementById('dl-btn').style.display = 'none';
+  document.getElementById('analyze-progress').style.display = 'none';
+  document.getElementById('run-btn').disabled = false;
+  // Jika sudah ada teks dari upload chat, tunjukkan
+  const lbl = document.getElementById('drop-label');
+  if (chatUploadedText && chatUploadedText.length > 100) {
+    lbl.textContent = '✅ Menggunakan file yang sudah diupload di chat. Atau klik untuk upload file baru.';
+    document.getElementById('drop-zone').classList.add('ready');
+  } else {
+    lbl.textContent = '📎 Klik di sini atau seret file skripsi (PDF/Word, maks 20 MB)';
+    document.getElementById('drop-zone').classList.remove('ready');
+  }
+}
+function closeAnalyzePanel() {
+  document.getElementById('analyze-overlay').style.display = 'none';
+}
+function closeOnBg(e) {
+  if (e.target.id === 'analyze-overlay') closeAnalyzePanel();
+}
+function onAnalyzeFileSelect(input) {
+  const f = input.files[0]; if (f) setAnalyzeFile(f);
+}
+function onAnalyzeDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.match(/\.(pdf|docx?)$/i)) setAnalyzeFile(f);
+  else if (f) alert('Gunakan PDF, DOC, atau DOCX.');
+}
+function setAnalyzeFile(file) {
+  analyzeSelectedFile = file;
+  const kb = file.size > 1048576 ? (file.size/1048576).toFixed(1)+' MB' : Math.round(file.size/1024)+' KB';
+  document.getElementById('drop-label').textContent = `✅ ${file.name} (${kb}) — siap dianalisis`;
+  document.getElementById('drop-zone').classList.add('ready');
+  const t = document.getElementById('thesis-title');
+  if (!t.value) t.value = file.name.replace(/\.(pdf|docx?)/i,'').replace(/[_\-]+/g,' ').trim();
+}
+
+async function runAnalysis() {
+  const title = document.getElementById('thesis-title').value.trim();
+  if (!title) { alert('Masukkan judul skripsi terlebih dahulu.'); return; }
+
+  // Tentukan sumber teks
+  let thesisText = chatUploadedText;
+
+  // Jika ada file baru di panel, upload dulu
+  if (analyzeSelectedFile) {
+    document.getElementById('analyze-progress').textContent = '📤 Mengekstrak teks dari file...';
+    document.getElementById('analyze-progress').style.display = 'block';
+    const fd = new FormData();
+    fd.append('file', analyzeSelectedFile);
+    try {
+      const r = await fetch('/upload', {method:'POST', body:fd});
+      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(e.detail||r.status); }
+      const d = await r.json();
+      thesisText = d.extracted_text || '';
+      chatUploadedText = thesisText;
+      const chapInfo2 = d.chapter_count > 0
+        ? ` · ${d.chapter_count} bab terdeteksi`
+        : ' · struktur bab tidak terdeteksi otomatis';
+      document.getElementById('drop-label').textContent =
+        `✅ ${d.filename} (${d.pages} hal, ${d.word_count} kata${chapInfo2}) — siap dianalisis`;
+    } catch(e) {
+      document.getElementById('analyze-progress').style.display = 'none';
+      alert('Gagal mengekstrak teks: ' + e.message); return;
+    }
+  }
+
+  if (!thesisText || thesisText.length < 100) {
+    alert('Teks skripsi tidak berhasil diekstrak.\n\nKemungkinan penyebab:\n• PDF hasil scan (bukan teks digital)\n• File terproteksi password\n\nGunakan file Word (.docx) atau PDF digital untuk hasil terbaik.');
+    return;
+  }
+
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('analyze-progress').textContent = '⏳ 8 sub-agen menganalisis skripsi secara paralel... (5-8 menit)';
+  document.getElementById('analyze-progress').style.display = 'block';
+  document.getElementById('analyze-result').style.display = 'none';
+  document.getElementById('dl-btn').style.display = 'none';
+
+  try {
+    const res = await fetch('/analyze', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        thesis_title: title,
+        student_name: document.getElementById('student-name').value.trim() || 'Mahasiswa',
+        thesis_text: thesisText,
+        session_id: sessionId,
+        user_id: userId,
+      })
+    });
+    if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.detail||`HTTP ${res.status}`); }
+    const data = await res.json();
+    analyzeDocxB64 = data.docx_base64;
+    analyzeDocxFilename = data.docx_filename;
+
+    // Simpan ke histori otomatis
+    addToHistory({
+      thesis_title: title,
+      student_name: document.getElementById('student-name').value.trim() || 'Mahasiswa',
+      audit_text: data.audit_text,
+      docx_base64: data.docx_base64,
+      docx_filename: data.docx_filename,
+    });
+
+    const rd = document.getElementById('analyze-result');
+    rd.style.display = 'block';
+    rd.innerHTML = buildPreview(data.audit_text);
+
+    document.getElementById('dl-btn').style.display = 'inline-flex';
+    document.getElementById('analyze-progress').style.display = 'none';
+
+    appendMsg('agent',
+      `✅ Analisis skripsi "${title}" selesai!\n\n` +
+      `Unduh file Word di panel untuk laporan lengkap:\n` +
+      `• Audit konsistensi benang merah Bab 1–5\n` +
+      `• Audit statistik & metodologi Bab 3–4\n` +
+      `• Kritik Bab Pembahasan\n` +
+      `• Deteksi referensi hantu & yatim\n` +
+      `• Parafrase kalimat berindikasi plagiarisme\n` +
+      `• Draf IMRAD Scopus Q1 (template IEEE + APA)`
+    );
+  } catch(err) {
+    document.getElementById('analyze-progress').style.display = 'none';
+    document.getElementById('analyze-result').style.display = 'block';
+    document.getElementById('analyze-result').innerHTML =
+      `<span style="color:var(--danger)">⚠️ ${err.message}</span>`;
+  } finally {
+    document.getElementById('run-btn').disabled = false;
+  }
+}
+
+function downloadWord(e) {
+  e.preventDefault();
+  if (!analyzeDocxB64) return;
+  const bin = atob(analyzeDocxB64);
+  const buf = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));
+  const a = document.createElement('a');
+  a.href=url; a.download=analyzeDocxFilename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

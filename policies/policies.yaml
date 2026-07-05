@@ -1,0 +1,79 @@
+# =============================================================================
+# RMD-TRA — policies.yaml
+# Hybrid Policy Server: Structural + Semantic Gating (Day 5 pattern)
+# Referensi: Spec-Driven Production Grade Development, May 2026, hal. 31
+# =============================================================================
+
+# ── Aturan per lingkungan ────────────────────────────────────────────────────
+environments:
+  localhost:
+    blocked_tools:
+      - deploy_to_production   # Tidak boleh deploy dari lokal
+    allowed_external_calls: false
+
+  production:
+    blocked_tools: []
+    allowed_external_calls: true
+    max_file_size_mb: 20
+
+# ── Aturan per peran pengguna ────────────────────────────────────────────────
+roles:
+  mahasiswa:
+    allowed_tools:
+      - filter_references_by_year
+      - correct_citation_format
+      - check_roadmap_alignment
+      - google_search
+      - parse_spss_output
+      - parse_smartpls_report
+      - validate_servqual_dimensions
+    # Mahasiswa TIDAK boleh mengakses sub-agen Scopus (hanya untuk dosen/peneliti)
+    blocked_tools:
+      - generate_scopus_manuscript
+      - sub_agent_analyst
+      - sub_agent_writer
+      - sub_agent_reviewer
+
+  dosen:
+    allowed_tools:
+      - "*"   # Semua tools tersedia untuk dosen
+    blocked_tools: []
+
+  kaprodi:
+    allowed_tools:
+      - "*"
+    blocked_tools: []
+
+# ── Aturan keamanan data (Context Hygiene) ───────────────────────────────────
+context_hygiene:
+  # Pola data yang TIDAK boleh muncul dalam output agen ke pengguna umum
+  sensitive_patterns:
+    - pattern: "gen-lang-client-[0-9]+"
+      label: "Google Cloud Project ID"
+      action: "mask"           # Ganti dengan [PROJECT_ID]
+
+    - pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}"
+      label: "Alamat email"
+      action: "mask"           # Ganti dengan [EMAIL]
+
+    - pattern: "AIza[0-9A-Za-z\\-_]{35}"
+      label: "Google API Key"
+      action: "block"          # Blokir output sepenuhnya
+
+    - pattern: "sk-[a-zA-Z0-9]{32,}"
+      label: "Secret key"
+      action: "block"
+
+  # Data riset internal yang tidak boleh dikirim ke layanan eksternal
+  protected_data:
+    - "Roadmap Penelitian Prodi Transportasi"
+    - "data primer mahasiswa"
+    - "NIM mahasiswa"
+    - "nilai akademik"
+
+# ── Batas operasional ────────────────────────────────────────────────────────
+limits:
+  max_tokens_per_request: 8000
+  max_references_per_batch: 60
+  max_document_pages: 200
+  rate_limit_per_minute: 20

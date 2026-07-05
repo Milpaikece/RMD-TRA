@@ -1,0 +1,624 @@
+"""
+RMD-TRA — pillar5/word_exporter.py
+Generator laporan audit .docx menggunakan python-docx
+
+Menghasilkan dua file Word:
+1. Laporan Audit Lengkap + Solusi Revisi Siap Tempel
+2. Draf IMRAD Scopus Q1 Siap Kirim
+"""
+
+from __future__ import annotations
+import re
+import io
+from datetime import datetime
+from typing import Optional
+
+try:
+    from docx import Document
+    from docx.shared import Pt, Cm, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.style import WD_STYLE_TYPE
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
+
+def _check_docx():
+    if not DOCX_AVAILABLE:
+        raise ImportError(
+            "python-docx belum terinstall. Jalankan: uv add python-docx"
+        )
+
+
+def _add_heading(doc: "Document", text: str, level: int = 1) -> None:
+    """Tambah heading dengan style yang konsisten."""
+    h = doc.add_heading(text, level=level)
+    h.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    for run in h.runs:
+        if level == 1:
+            run.font.color.rgb = RGBColor(0x0D, 0x1B, 0x2A)  # Navy
+            run.font.size = Pt(14)
+        elif level == 2:
+            run.font.color.rgb = RGBColor(0x1A, 0x7A, 0x6E)  # Teal
+            run.font.size = Pt(12)
+        else:
+            run.font.color.rgb = RGBColor(0x44, 0x44, 0x41)
+            run.font.size = Pt(11)
+
+
+def _add_perspective_label(doc: "Document", label: str) -> None:
+    """
+    Tandai bagian audit dengan sudut pandang penguji yang diwakilinya —
+    4 sub-agen paralel (Consistency/Stats/Discussion/Ghost Citation) secara
+    alami mewakili 4 fokus penguji berbeda, jadi cukup dilabeli eksplisit
+    di sini daripada membuat agen "persona penguji" terpisah yang duplikat.
+    """
+    p = doc.add_paragraph()
+    run = p.add_run(f"Perspektif Penguji: {label}")
+    run.italic = True
+    run.font.size = Pt(10)
+    run.font.color.rgb = RGBColor(0x6B, 0x65, 0x60)
+
+
+def _add_info_box(doc: "Document", label: str, content: str,
+                  color: str = "INFO") -> None:
+    """Tambah kotak informasi berwarna untuk solusi revisi."""
+    colors = {
+        "KRITIS": RGBColor(0xC0, 0x39, 0x2B),   # Merah
+        "SEDANG": RGBColor(0xBA, 0x75, 0x17),    # Amber
+        "INFO":   RGBColor(0x18, 0x5F, 0xA5),    # Biru
+        "SOLUSI": RGBColor(0x0F, 0x6E, 0x56),    # Hijau/Teal
+    }
+    para = doc.add_paragraph()
+    label_run = para.add_run(f"[{label}] ")
+    label_run.bold = True
+    label_run.font.color.rgb = colors.get(color, colors["INFO"])
+    label_run.font.size = Pt(11)
+    content_run = para.add_run(content)
+    content_run.font.size = Pt(11)
+    para.paragraph_format.left_indent = Cm(0.5)
+    para.paragraph_format.space_after = Pt(6)
+
+
+def _add_revision_block(doc: "Document", location: str,
+                        original: str, revision: str) -> None:
+    """Tambah blok solusi revisi dengan format tiga bagian."""
+    doc.add_paragraph()
+    _add_info_box(doc, "LOKASI", location, "INFO")
+
+    if original:
+        orig_para = doc.add_paragraph()
+        orig_run = orig_para.add_run("Teks Asli: ")
+        orig_run.bold = True
+        orig_run.font.color.rgb = RGBColor(0xA3, 0x2D, 0x2D)
+        orig_run.font.size = Pt(10)
+        orig_text = orig_para.add_run(original)
+        orig_text.font.size = Pt(10)
+        orig_text.font.italic = True
+        orig_para.paragraph_format.left_indent = Cm(1)
+
+    rev_para = doc.add_paragraph()
+    rev_run = rev_para.add_run("Teks Revisi (Siap Tempel): ")
+    rev_run.bold = True
+    rev_run.font.color.rgb = RGBColor(0x0F, 0x6E, 0x56)
+    rev_run.font.size = Pt(10)
+    rev_text = rev_para.add_run(revision)
+    rev_text.font.size = Pt(10)
+    rev_para.paragraph_format.left_indent = Cm(1)
+
+    # Garis pemisah
+    sep = doc.add_paragraph("─" * 60)
+    sep.paragraph_format.left_indent = Cm(0)
+    for run in sep.runs:
+        run.font.color.rgb = RGBColor(0xD3, 0xD1, 0xC7)
+        run.font.size = Pt(8)
+
+
+_SIMPUL_COLORS = {
+    "TERHUBUNG": RGBColor(0x0F, 0x6E, 0x56),   # Hijau teal
+    "LEMAH":     RGBColor(0xBA, 0x75, 0x17),    # Amber
+    "TERPUTUS":  RGBColor(0xC0, 0x39, 0x2B),    # Merah
+}
+
+_SIMPUL_LABELS = [
+    ("SIMPUL 1", "Bab 1 → Bab 2", "Rumusan Masalah → Tinjauan Literatur"),
+    ("SIMPUL 2", "Bab 2 → Bab 3", "Teori → Metode yang Tepat"),
+    ("SIMPUL 3", "Bab 3 → Bab 4", "Metode → Hasil & Pembahasan (merujuk Bab 2)"),
+    ("SIMPUL 4", "Bab 4 → Bab 5", "Hasil → Sintesis Kesimpulan"),
+    ("SIMPUL 5", "Bab 1 ↔ Bab 5", "Sirkularitas Rumusan Masalah ↔ Kesimpulan"),
+]
+
+
+def _add_simpul_table(doc: "Document", simpul_text: str) -> None:
+    """
+    Render tabel 5 SIMPUL benang merah sebagai tabel Word berwarna.
+    Parsing format: SIMPUL N | ... | ... | [STATUS: ...]
+    """
+    # Parse baris status dari teks agen
+    status_map: dict[int, str] = {}
+    for line in simpul_text.splitlines():
+        m = re.match(r'SIMPUL\s+(\d)\s*\|.*\[STATUS:\s*(TERHUBUNG|LEMAH|TERPUTUS)\]',
+                     line, re.IGNORECASE)
+        if m:
+            status_map[int(m.group(1))] = m.group(2).upper()
+
+    # Judul tabel
+    intro = doc.add_paragraph()
+    intro_run = intro.add_run(
+        "Kerangka Evaluasi 5 SIMPUL Benang Merah — Alur Berpikir Ilmiah Skripsi"
+    )
+    intro_run.bold = True
+    intro_run.font.size = Pt(11)
+    intro_run.font.color.rgb = RGBColor(0x0D, 0x1B, 0x2A)
+
+    # Buat tabel: Simpul | Transisi | Yang Diperiksa | Status
+    tbl = doc.add_table(rows=6, cols=4)
+    tbl.style = "Table Grid"
+
+    # Header
+    headers = ["Simpul", "Transisi Antar Bab", "Yang Diperiksa", "Status"]
+    hdr_row = tbl.rows[0]
+    for j, hdr in enumerate(headers):
+        cell = hdr_row.cells[j]
+        cell.text = hdr
+        for para in cell.paragraphs:
+            for run in para.runs:
+                run.bold = True
+                run.font.size = Pt(10)
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        # Warna header navy
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        shd = OxmlElement('w:shd')
+        shd.set(qn('w:val'), 'clear')
+        shd.set(qn('w:color'), 'auto')
+        shd.set(qn('w:fill'), '0D1B2A')
+        tcPr.append(shd)
+
+    # Baris data
+    for i, (simpul_id, transisi, diperiksa) in enumerate(_SIMPUL_LABELS):
+        row = tbl.rows[i + 1]
+        status = status_map.get(i + 1, "—")
+        data = [simpul_id, transisi, diperiksa, status]
+        color = _SIMPUL_COLORS.get(status, RGBColor(0x44, 0x44, 0x44))
+
+        for j, val in enumerate(data):
+            cell = row.cells[j]
+            cell.text = val
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(10)
+                    if j == 3:  # Kolom status
+                        run.bold = True
+                        run.font.color.rgb = color
+
+    doc.add_paragraph()  # spasi setelah tabel
+
+
+_MATRIX_STATUS_COLORS = {
+    "LENGKAP": RGBColor(0x0F, 0x6E, 0x56),
+    "TIDAK LENGKAP": RGBColor(0xC0, 0x39, 0x2B),
+}
+
+
+def _add_traceability_matrix(doc: "Document", matrix_text: str) -> None:
+    """
+    Render Matriks Keterlacakan Rumusan Masalah -> Tujuan -> Hasil -> Kesimpulan
+    sebagai tabel Word berwarna. Parsing format:
+    RMn | rumusan masalah | tujuan | hasil bab 4 | kesimpulan | [STATUS: LENGKAP/TIDAK LENGKAP]
+    """
+    rows_data = []
+    for line in matrix_text.splitlines():
+        line = line.strip()
+        if not line or not line.upper().startswith("RM"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 6:
+            continue
+        status_m = re.search(r'\[STATUS:\s*(LENGKAP|TIDAK LENGKAP)\]', parts[5], re.IGNORECASE)
+        status = status_m.group(1).upper() if status_m else "—"
+        rows_data.append((parts[0], parts[1], parts[2], parts[3], parts[4], status))
+
+    if not rows_data:
+        return  # tidak ada data valid, jangan tampilkan tabel kosong
+
+    intro = doc.add_paragraph()
+    intro_run = intro.add_run(
+        "Matriks Keterlacakan — Rumusan Masalah ↔ Tujuan ↔ Hasil Bab 4 ↔ Kesimpulan"
+    )
+    intro_run.bold = True
+    intro_run.font.size = Pt(11)
+    intro_run.font.color.rgb = RGBColor(0x0D, 0x1B, 0x2A)
+
+    tbl = doc.add_table(rows=len(rows_data) + 1, cols=6)
+    tbl.style = "Table Grid"
+
+    headers = ["RM", "Rumusan Masalah", "Tujuan", "Hasil (Bab 4)", "Kesimpulan (Bab 5)", "Status"]
+    hdr_row = tbl.rows[0]
+    for j, hdr in enumerate(headers):
+        cell = hdr_row.cells[j]
+        cell.text = hdr
+        for para in cell.paragraphs:
+            for run in para.runs:
+                run.bold = True
+                run.font.size = Pt(9)
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        shd = OxmlElement('w:shd')
+        shd.set(qn('w:val'), 'clear')
+        shd.set(qn('w:color'), 'auto')
+        shd.set(qn('w:fill'), '0D1B2A')
+        tcPr.append(shd)
+
+    for i, row_vals in enumerate(rows_data):
+        row = tbl.rows[i + 1]
+        color = _MATRIX_STATUS_COLORS.get(row_vals[5], RGBColor(0x44, 0x44, 0x44))
+        for j, val in enumerate(row_vals):
+            cell = row.cells[j]
+            cell.text = val
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(9)
+                    if j == 5:
+                        run.bold = True
+                        run.font.color.rgb = color
+
+    doc.add_paragraph()
+
+
+def _add_simpul_revision_blocks(doc: "Document", consistency_text: str) -> None:
+    """
+    Parse dan render blok [REVISI SIMPUL N]...[/REVISI SIMPUL]
+    dari output Consistency Engine.
+    """
+    blocks = re.findall(
+        r'\[REVISI SIMPUL (\d)\](.*?)\[/REVISI SIMPUL\]',
+        consistency_text, re.DOTALL | re.IGNORECASE
+    )
+    if not blocks:
+        # Fallback: tampilkan teks mentah jika format baru belum ada
+        doc.add_paragraph(consistency_text)
+        return
+
+    for simpul_num, block_text in blocks:
+        # Sub-heading per simpul
+        h = doc.add_heading(f"Simpul {simpul_num} — Temuan & Revisi", level=2)
+        for run in h.runs:
+            run.font.color.rgb = RGBColor(0x1A, 0x7A, 0x6E)
+            run.font.size = Pt(12)
+
+        # Parse field dalam blok
+        fields = {
+            "TRANSISI":    r'TRANSISI:\s*(.*?)(?=LOKASI:|MASALAH:|TEKS ASLI:|TEKS REVISI:|$)',
+            "LOKASI":      r'LOKASI:\s*(.*?)(?=TRANSISI:|MASALAH:|TEKS ASLI:|TEKS REVISI:|$)',
+            "MASALAH":     r'MASALAH:\s*(.*?)(?=TRANSISI:|LOKASI:|TEKS ASLI:|TEKS REVISI:|$)',
+            "TEKS ASLI":   r'TEKS ASLI:\s*(.*?)(?=TRANSISI:|LOKASI:|MASALAH:|TEKS REVISI:|$)',
+            "TEKS REVISI": r'TEKS REVISI:\s*(.*?)(?=TRANSISI:|LOKASI:|MASALAH:|TEKS ASLI:|$)',
+        }
+        parsed: dict[str, str] = {}
+        for fname, fpat in fields.items():
+            m = re.search(fpat, block_text, re.DOTALL | re.IGNORECASE)
+            parsed[fname] = m.group(1).strip() if m else ""
+
+        if parsed.get("TRANSISI"):
+            _add_info_box(doc, "Transisi", parsed["TRANSISI"], "INFO")
+        if parsed.get("LOKASI"):
+            _add_info_box(doc, "Lokasi", parsed["LOKASI"], "INFO")
+        if parsed.get("MASALAH"):
+            _add_info_box(doc, "Masalah Benang Merah", parsed["MASALAH"], "SEDANG")
+        if parsed.get("TEKS ASLI") or parsed.get("TEKS REVISI"):
+            _add_revision_block(
+                doc,
+                location=parsed.get("LOKASI", ""),
+                original=parsed.get("TEKS ASLI", ""),
+                revision=parsed.get("TEKS REVISI", "(Lihat narasi audit di atas)"),
+            )
+
+
+def _parse_sections(audit_text: str) -> dict[str, str]:
+    """
+    Pisahkan output gabungan dari semua sub-agen berdasarkan marker.
+    """
+    markers = {
+        "consistency":  (r"\[SOLUSI REVISI — CONSISTENCY ENGINE\]",
+                         r"\[CONSISTENCY_DONE\]"),
+        "stats":        (r"\[SOLUSI REVISI — STATISTICAL AUDITOR\]",
+                         r"\[STATS_AUDITOR_DONE\]"),
+        "discussion":   (r"\[SOLUSI REVISI — DISCUSSION CRITIQUE\]",
+                         r"\[DISCUSSION_DONE\]"),
+        "ghost":        (r"\[SOLUSI REVISI — GHOST CITATION DETECTOR\]",
+                         r"\[GHOST_CITATION_DONE\]"),
+        "journal":      (r"\[DRAF IMRAD — SIAP TEMPEL DAN DIKEMBANGKAN\]",
+                         r"\[JOURNAL_DONE\]"),
+        "draf_revisi_id": (r"\[DRAF REVISI PENUH — BAHASA INDONESIA\]",
+                         r"\[JOURNAL_DONE\]"),
+        "paraphrase":   (r"\[PARAFRASE SIAP TEMPEL — PARAPHRASING ENGINE\]",
+                         r"\[PARAPHRASE_DONE\]"),
+        "template":     (r"\[AUTO-TEMPLATE CONVERTER — SIAP KIRIM KE JURNAL\]",
+                         r"\[TEMPLATE_DONE\]"),
+        "sidang":       (r"\[SIMULASI SIDANG — PERTANYAAN & JAWABAN\]",
+                         r"\[SIDANG_PREP_DONE\]"),
+    }
+    sections = {}
+    for key, (start_pat, end_pat) in markers.items():
+        match = re.search(
+            f"{start_pat}(.*?){end_pat}",
+            audit_text, re.DOTALL | re.IGNORECASE
+        )
+        sections[key] = match.group(1).strip() if match else ""
+    return sections
+
+
+def generate_audit_report(
+    audit_text: str,
+    thesis_title: str,
+    student_name: str = "Mahasiswa",
+    output_path: Optional[str] = None,
+    finance_verification: Optional[str] = None,
+) -> bytes:
+    """
+    Hasilkan file Word laporan audit lengkap dengan solusi revisi siap tempel.
+
+    Args:
+        audit_text  : Output gabungan dari semua 8 sub-agen.
+        thesis_title: Judul skripsi yang dianalisis.
+        student_name: Nama mahasiswa.
+        output_path : Jika diisi, simpan ke path ini. Jika None, return bytes.
+        finance_verification: Hasil verifikasi angka otomatis dari
+            _build_finance_verification_block (Python, bukan LLM) — kalau
+            diisi, ditampilkan sebagai bagian tersendiri di awal laporan.
+
+    Returns:
+        bytes konten file .docx
+    """
+    _check_docx()
+    doc = Document()
+
+    # ── Pengaturan halaman A4 ──────────────────────────────────────────────
+    section = doc.sections[0]
+    section.page_height = Cm(29.7)
+    section.page_width  = Cm(21.0)
+    section.top_margin    = Cm(2.5)
+    section.bottom_margin = Cm(2.5)
+    section.left_margin   = Cm(3.0)
+    section.right_margin  = Cm(2.5)
+
+    # ── Halaman judul ──────────────────────────────────────────────────────
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title_para.add_run("LAPORAN AUDIT SKRIPSI")
+    title_run.bold = True
+    title_run.font.size = Pt(18)
+    title_run.font.color.rgb = RGBColor(0x0D, 0x1B, 0x2A)
+
+    subtitle_para = doc.add_paragraph()
+    subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle_run = subtitle_para.add_run("RMD-TRA — Research Management & Development")
+    subtitle_run.font.size = Pt(12)
+    subtitle_run.font.color.rgb = RGBColor(0x1A, 0x7A, 0x6E)
+
+    doc.add_paragraph()
+
+    info_table = doc.add_table(rows=3, cols=2)
+    info_table.style = "Table Grid"
+    info_data = [
+        ("Judul Skripsi", thesis_title),
+        ("Nama Mahasiswa", student_name),
+        ("Tanggal Audit", datetime.now().strftime("%d %B %Y")),
+    ]
+    for i, (label, value) in enumerate(info_data):
+        info_table.rows[i].cells[0].text = label
+        info_table.rows[i].cells[1].text = value
+        for cell in info_table.rows[i].cells:
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(11)
+
+    doc.add_page_break()
+
+    # ── Bagian 0: Verifikasi Angka Otomatis (deterministik, bukan LLM) ────
+    if finance_verification and finance_verification.strip():
+        _add_heading(doc, "0. Verifikasi Angka Otomatis (Sistem)", 1)
+        notice_fv = doc.add_paragraph()
+        notice_fv_run = notice_fv.add_run(
+            "Bagian ini dihasilkan langsung oleh perhitungan Python — bukan LLM — "
+            "sehingga dijamin akurat secara matematis. Dipakai sebagai bukti oleh "
+            "Sub-Agen Statistical Auditor di Bagian 2."
+        )
+        notice_fv_run.font.italic = True
+        notice_fv_run.font.size = Pt(10)
+        notice_fv_run.font.color.rgb = RGBColor(0x18, 0x5F, 0xA5)
+        for line in finance_verification.splitlines():
+            if not line.strip() or set(line.strip()) == {"="}:
+                continue
+            doc.add_paragraph(line)
+        doc.add_page_break()
+
+    # ── Parse sections dari output agen ──────────────────────────────────
+    sections = _parse_sections(audit_text)
+
+    # ── Bagian 1: Consistency Engine — Kerangka 5 SIMPUL ─────────────────
+    _add_heading(doc, "1. Analisis Konsistensi Benang Merah (Bab 1–5)", 1)
+    _add_perspective_label(doc, "Alur Berpikir Ilmiah & Keterlacakan Argumen")
+
+    # Penjelasan singkat kerangka — selalu tampil sebagai fitur tetap
+    intro_p = doc.add_paragraph()
+    intro_run = intro_p.add_run(
+        "Analisis ini mengevaluasi keutuhan benang merah (logical thread) yang "
+        "menghubungkan seluruh bab skripsi secara sirkular. Kerangka 5 SIMPUL "
+        "di bawah ini memetakan alur berpikir ilmiah: dari Rumusan Masalah (Bab 1) "
+        "yang menuntun pencarian teori (Bab 2), pemilihan metode (Bab 3), "
+        "pelaksanaan analisis dan pembahasan berbasis teori (Bab 4), hingga "
+        "sintesis kesimpulan yang menjawab rumusan masalah secara sirkular (Bab 5)."
+    )
+    intro_run.font.size = Pt(11)
+    intro_run.font.italic = True
+    intro_run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
+    doc.add_paragraph()
+
+    # Ekstrak bagian tabel simpul dari output agen
+    simpul_raw = ""
+    tabel_m = re.search(
+        r'\[TABEL SIMPUL\](.*?)\[/TABEL SIMPUL\]',
+        audit_text, re.DOTALL | re.IGNORECASE
+    )
+    if tabel_m:
+        simpul_raw = tabel_m.group(1)
+
+    # Render tabel 5 SIMPUL — selalu tampil
+    _add_simpul_table(doc, simpul_raw)
+
+    # Ekstrak & render Matriks Keterlacakan RM-Tujuan-Hasil-Kesimpulan
+    matrix_m = re.search(
+        r'\[MATRIKS KETERLACAKAN\](.*?)\[/MATRIKS KETERLACAKAN\]',
+        audit_text, re.DOTALL | re.IGNORECASE
+    )
+    if matrix_m:
+        _add_traceability_matrix(doc, matrix_m.group(1))
+
+    # Narasi audit (teks sebelum marker [SOLUSI REVISI])
+    full_consistency = audit_text  # fallback
+    narasi_m = re.search(
+        r'(.*?)\[SOLUSI REVISI — CONSISTENCY ENGINE\]',
+        audit_text, re.DOTALL | re.IGNORECASE
+    )
+    if narasi_m:
+        narasi_text = narasi_m.group(1).strip()
+        if narasi_text:
+            _add_heading(doc, "Narasi Audit", 2)
+            doc.add_paragraph(narasi_text)
+    doc.add_paragraph()
+
+    # Blok revisi per simpul
+    consistency_section = sections.get("consistency", "")
+    if consistency_section:
+        _add_heading(doc, "Temuan & Solusi Revisi per Simpul", 2)
+        _add_simpul_revision_blocks(doc, consistency_section)
+    else:
+        doc.add_paragraph("(Analisis sedang diproses atau tidak tersedia.)")
+    doc.add_page_break()
+
+    # ── Bagian 2: Statistical Auditor ─────────────────────────────────────
+    _add_heading(doc, "2. Audit Statistik & Metodologi (Bab 3–4)", 1)
+    _add_perspective_label(doc, "Metodologi, Statistik & Ketepatan Angka")
+    if sections.get("stats"):
+        doc.add_paragraph(sections["stats"])
+    else:
+        doc.add_paragraph("(Analisis sedang diproses atau tidak tersedia.)")
+    doc.add_page_break()
+
+    # ── Bagian 3: Discussion Critique ─────────────────────────────────────
+    _add_heading(doc, "3. Kritik Bab Pembahasan", 1)
+    _add_perspective_label(doc, "Argumentasi, Logika & Kebijakan")
+    if sections.get("discussion"):
+        doc.add_paragraph(sections["discussion"])
+    else:
+        doc.add_paragraph("(Analisis sedang diproses atau tidak tersedia.)")
+    doc.add_page_break()
+
+    # ── Bagian 4: Ghost Citation ──────────────────────────────────────────
+    _add_heading(doc, "4. Deteksi Referensi Hantu & Referensi Yatim", 1)
+    _add_perspective_label(doc, "Kepatuhan Akademik & Integritas Sitasi")
+    if sections.get("ghost"):
+        doc.add_paragraph(sections["ghost"])
+    else:
+        doc.add_paragraph("(Analisis sedang diproses atau tidak tersedia.)")
+    doc.add_page_break()
+
+    # ── Bagian 5: Paraphrasing Engine ────────────────────────────────────
+    _add_heading(doc, "5. Parafrase Kalimat Berindikasi Plagiarisme", 1)
+    if sections.get("paraphrase"):
+        doc.add_paragraph(sections["paraphrase"])
+    else:
+        doc.add_paragraph("(Analisis sedang diproses atau tidak tersedia.)")
+    doc.add_page_break()
+
+    # ── Bagian 6: Journal Compatibility ──────────────────────────────────
+    _add_heading(doc, "6. Penilaian Kelayakan Scopus Q1", 1)
+    journal_text = sections.get("journal", "")
+    # Buang isi Draf Revisi Penuh dari sini kalau ikut tertangkap (dirender
+    # terpisah di Bagian 7) supaya tidak duplikat.
+    journal_text = re.split(r'\[DRAF REVISI PENUH — BAHASA INDONESIA\]', journal_text, flags=re.IGNORECASE)[0].strip()
+    if journal_text:
+        doc.add_paragraph(journal_text)
+    else:
+        doc.add_paragraph("(Analisis sedang diproses atau tidak tersedia.)")
+    doc.add_page_break()
+
+    # ── Bagian 7: Draf Revisi Penuh (Bahasa Indonesia) ───────────────────
+    _add_heading(doc, "7. Draf Revisi Penuh — Bahasa Indonesia (Siap Tempel)", 1)
+    notice_id = doc.add_paragraph()
+    notice_id_run = notice_id.add_run(
+        "CATATAN: Draf ini menggabungkan semua perbaikan yang ditemukan tim audit. "
+        "WAJIB diverifikasi ulang oleh mahasiswa dan dosen pembimbing sebelum "
+        "digunakan, terutama angka-angka hasil penelitian."
+    )
+    notice_id_run.font.italic = True
+    notice_id_run.font.color.rgb = RGBColor(0x85, 0x4F, 0x0B)
+    notice_id_run.font.size = Pt(10)
+    if sections.get("draf_revisi_id"):
+        doc.add_paragraph(sections["draf_revisi_id"])
+    else:
+        doc.add_paragraph("(Draf revisi penuh tidak tersedia untuk analisis ini.)")
+    doc.add_page_break()
+
+    # ── Bagian 8: Auto-Template Converter ────────────────────────────────
+    _add_heading(doc, "8. Draf Artikel Scopus Q1 — Siap Kirim", 1)
+    notice = doc.add_paragraph()
+    notice_run = notice.add_run(
+        "CATATAN: Teks di bawah ini adalah draf yang dihasilkan oleh RMD-TRA "
+        "berdasarkan isi skripsi Anda. Lakukan verifikasi, penyesuaian, dan "
+        "pemformatan sesuai author guidelines jurnal target sebelum pengiriman."
+    )
+    notice_run.font.italic = True
+    notice_run.font.color.rgb = RGBColor(0x85, 0x4F, 0x0B)
+    notice_run.font.size = Pt(10)
+
+    if sections.get("template"):
+        doc.add_paragraph(sections["template"])
+    else:
+        doc.add_paragraph("(Template sedang diproses atau tidak tersedia.)")
+    doc.add_page_break()
+
+    # ── Bagian 9: Simulasi Sidang ─────────────────────────────────────────
+    _add_heading(doc, "9. Simulasi Pertanyaan Sidang & Jawaban Aman", 1)
+    notice_sidang = doc.add_paragraph()
+    notice_sidang_run = notice_sidang.add_run(
+        "Daftar ini disusun berdasarkan seluruh temuan audit di atas, diurutkan "
+        "dari yang paling berisiko ditanyakan penguji. Latih jawabannya, jangan "
+        "dihafal kata-per-kata — pahami intinya."
+    )
+    notice_sidang_run.font.italic = True
+    notice_sidang_run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
+    notice_sidang_run.font.size = Pt(10)
+    if sections.get("sidang"):
+        doc.add_paragraph(sections["sidang"])
+    else:
+        doc.add_paragraph("(Simulasi sidang tidak tersedia untuk analisis ini.)")
+
+    # ── Footer ─────────────────────────────────────────────────────────────
+    footer = doc.sections[0].footer
+    footer_para = footer.paragraphs[0]
+    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_run = footer_para.add_run(
+        f"RMD-TRA v2.0 — Laporan dihasilkan otomatis pada "
+        f"{datetime.now().strftime('%d %B %Y, %H:%M')} WIB"
+    )
+    footer_run.font.size = Pt(9)
+    footer_run.font.color.rgb = RGBColor(0x88, 0x87, 0x80)
+
+    # ── Simpan ─────────────────────────────────────────────────────────────
+    buf = io.BytesIO()
+    doc.save(buf)
+    content = buf.getvalue()
+
+    if output_path:
+        with open(output_path, "wb") as f:
+            f.write(content)
+
+    return content

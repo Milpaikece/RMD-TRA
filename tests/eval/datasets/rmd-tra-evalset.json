@@ -1,0 +1,86 @@
+{
+  "eval_set_id": "rmd-tra-pilar1-evalset-v1",
+  "description": "Dataset evaluasi RMD-TRA Pilar 1: filter referensi, koreksi sitasi, dan pengecekan roadmap.",
+  "evals": [
+    {
+      "eval_id": "filter_01_mixed_years",
+      "conversation": [
+        {
+          "invocation_id": "inv_001",
+          "user_content": {
+            "parts": [{"text": "Tolong periksa referensi berikut dan filter yang di luar 2021-2026:\n\nSantoso, B. (2019). Analisis kepuasan penumpang bus TransJakarta. Jurnal Transportasi, 5(2), 45–58.\nWijaya, T. & Prasetyo, A. (2023). Kualitas layanan BRT di kota besar Indonesia. Jurnal Teknik Transportasi, 12(1), 12–25.\nHartono, D. (2015). Perencanaan transportasi perkotaan berkelanjutan. Jakarta: Gramedia Pustaka."}],
+            "role": "user"
+          },
+          "expected_tool_use": [
+            {
+              "tool_name": "filter_references_by_year",
+              "tool_input": {"reference_text": "Santoso, B. (2019)...\nWijaya, T. & Prasetyo, A. (2023)...\nHartono, D. (2015)..."}
+            }
+          ],
+          "expected_agent_output": "narasi yang menyebutkan 2 referensi usang (2019 dan 2015) dan 1 referensi valid (2023)",
+          "reference_final_response": "Dari tiga referensi yang Anda berikan, ditemukan satu yang memenuhi syarat kronologis prodi dan dua yang perlu segera diganti."
+        }
+      ]
+    },
+    {
+      "eval_id": "citation_01_apa_error",
+      "conversation": [
+        {
+          "invocation_id": "inv_002",
+          "user_content": {
+            "parts": [{"text": "Koreksi format APA ini: Budi Santoso, 2023, Analisis Kualitas Layanan Bus Kota Bandung, Jurnal Transportasi Vol 10 No 2 hal 15-28"}],
+            "role": "user"
+          },
+          "expected_tool_use": [
+            {
+              "tool_name": "correct_citation_format",
+              "tool_input": {"reference": "Budi Santoso, 2023, Analisis Kualitas Layanan Bus Kota Bandung, Jurnal Transportasi Vol 10 No 2 hal 15-28", "target_style": "APA"}
+            }
+          ],
+          "expected_agent_output": "narasi yang menjelaskan setidaknya 2 kesalahan format APA dan memberikan contoh perbaikan yang konkret",
+          "reference_final_response": "Terdapat beberapa ketidaksesuaian dengan panduan APA 7th Edition yang perlu diperbaiki sebelum draf ini dapat diajukan."
+        }
+      ]
+    },
+    {
+      "eval_id": "roadmap_01_aligned",
+      "conversation": [
+        {
+          "invocation_id": "inv_003",
+          "user_content": {
+            "parts": [{"text": "Apakah topik ini sesuai roadmap prodi saya? Analisis kepuasan penumpang kereta commuter line dengan metode ServQual di Stasiun Bekasi."}],
+            "role": "user"
+          },
+          "expected_tool_use": [
+            {
+              "tool_name": "check_roadmap_alignment",
+              "tool_input": {"topic": "Analisis kepuasan penumpang kereta commuter line dengan metode ServQual di Stasiun Bekasi"}
+            }
+          ],
+          "expected_agent_output": "narasi yang mengkonfirmasi kesesuaian topik dengan kluster Transportasi Publik dan menyebut ServQual sebagai metode yang relevan",
+          "reference_final_response": "Topik penelitian ini sangat selaras dengan Roadmap Prodi Transportasi, khususnya kluster Transportasi Publik & Layanan."
+        }
+      ]
+    },
+    {
+      "eval_id": "roadmap_02_misaligned",
+      "conversation": [
+        {
+          "invocation_id": "inv_004",
+          "user_content": {
+            "parts": [{"text": "Cek roadmap: Analisis Pengaruh Inflasi terhadap Nilai Tukar Rupiah menggunakan model ARIMA"}],
+            "role": "user"
+          },
+          "expected_tool_use": [
+            {
+              "tool_name": "check_roadmap_alignment",
+              "tool_input": {"topic": "Analisis Pengaruh Inflasi terhadap Nilai Tukar Rupiah menggunakan model ARIMA"}
+            }
+          ],
+          "expected_agent_output": "narasi yang menjelaskan bahwa topik ini tidak selaras dengan roadmap prodi transportasi dan mengarahkan ke topik yang lebih relevan",
+          "reference_final_response": "Topik ini tampaknya berada di luar cakupan Roadmap Penelitian Prodi Transportasi."
+        }
+      ]
+    }
+  ]
+}
