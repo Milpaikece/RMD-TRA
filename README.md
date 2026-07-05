@@ -1,4 +1,4 @@
-# RMD-TRA — A Multi-Agent Thesis Auditor That Cannot Hallucinate Its Numbers
+# RMD-TRA - A Multi-Agent Thesis Auditor That Cannot Hallucinate Its Numbers
 
 **Eight Gemini sub-agents + a deterministic Python verification layer that recomputes every critical figure — validated on real transportation-engineering theses.**
 
@@ -14,7 +14,7 @@ Upload a full undergraduate thesis (`.docx` / `.pdf`) and RMD-TRA returns a **pu
 
 Its founding principle, set by a real program head who evaluates real student work: **every claim must be provable against the source document, and every critical number is recomputed by Python — never guessed by the LLM.**
 
-## Why it's different — the anti-hallucination layer
+## Why it's different - the anti-hallucination layer
 
 Before any LLM sees the text, a deterministic Python layer runs and injects *proven* numbers into the agents' prompts:
 
